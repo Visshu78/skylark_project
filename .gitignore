@@ -57,4 +57,5 @@ outputs/predictions.json
 outputs/training_curves.png
 outputs/train.log
 prediction_visualizations/
+test_predictions/
 *.pth
