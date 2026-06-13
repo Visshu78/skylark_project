@@ -1,0 +1,60 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.idea/
+.vscode/
+
+# Local configuration / user settings
+configs/local.json
+
+# Local logging
+*.log
+
+# Generated data tables
+dataset.csv
+dataset_folds.csv
+
+# Datasets
+train_dataset/
+test_dataset/
+data/
+
+# Large deep learning weights / outputs
+outputs/best_model.pth
+outputs/last_model.pth
+outputs/predictions.json
+outputs/training_curves.png
+outputs/train.log
+prediction_visualizations/
+*.pth
