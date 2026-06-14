@@ -454,28 +454,42 @@ Output format:
   }
 }
 ```
+# Resources
+
+## Dataset
+
+Dataset provided by Skylar Drones:
+
+[https://drive.google.com/drive/folders/1RDNiAO1EynKrRDomcVNXQW1-ct5zzvE5](https://drive.google.com/drive/folders/1RDNiAO1EynKrRDomcVNXQW1-ct5zzvE5?usp=sharing)
 
 ---
 
-# Model Weights
+## Trained Model
 
 Best trained checkpoint:
 
-```text
-[INSERT GOOGLE DRIVE LINK]
-```
+[https://drive.google.com/file/d/1LWS9-Qd5VgPvSaHIHcksJaiG8BTquYwD/view?usp=drive_link](https://drive.google.com/file/d/1LWS9-Qd5VgPvSaHIHcksJaiG8BTquYwD/view?usp=drive_link)
 
 Download:
 
-```text
 best_model.pth
-```
 
 Place inside:
 
-```text
 outputs/
-```
+
+---
+
+## Final Predictions
+
+Generated predictions on the complete test dataset:
+
+[https://drive.google.com/file/d/1-mLi8JXy-7HsehZk-fhYo1nF_fAYpby9/view?usp=drive_link](https://drive.google.com/file/d/1-mLi8JXy-7HsehZk-fhYo1nF_fAYpby9/view?usp=drive_link)
+
+File:
+
+predictions.json
+---
 
 ---
 
@@ -497,7 +511,6 @@ Output:
 
 ```text
 outputs/predictions.json
-```
 
 ---
 
