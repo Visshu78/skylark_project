@@ -13,7 +13,8 @@ The system performs two tasks simultaneously:
    * Square
    * L-Shape
 
-The project was developed as part of the **Computer Vision Engineering Assignment: Aerial GCP Pose Estimation**.
+**Note-** Predection.json and best model checkpoint weight links are attached later in the document.
+
 
 ---
 
