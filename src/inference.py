@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from tqdm import tqdm
 import argparse
 import json
 import logging
@@ -121,38 +121,72 @@ def run_inference(
     mode: str | None = None,
 ) -> None:
     config = load_config(config_path)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     if device.type != "cuda":
         logging.warning("CUDA not detected; inference is running on CPU.")
 
     state_dict, checkpoint_config = load_checkpoint(model_path, device)
+
     merged = {**config, **checkpoint_config}
+
     model = GCPMultiTaskModel(
         pretrained=False,
         dropout=float(merged.get("dropout", 0.2)),
     ).to(device)
+
     model.load_state_dict(state_dict)
     model.eval()
 
     data_root = Path(data_root)
-    predictions: dict[str, dict] = {}
-    inference_mode = mode or str(merged.get("inference_mode", "tiles"))
 
-    for image_path in iter_images(data_root):
-        image_bgr = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    predictions: dict[str, dict] = {}
+
+    inference_mode = mode or str(
+        merged.get("inference_mode", "tiles")
+    )
+
+    image_paths = list(iter_images(data_root))
+
+    print(f"\nFound {len(image_paths)} images")
+    print("Starting inference...\n")
+
+    for image_path in tqdm(
+        image_paths,
+        desc="Running inference",
+        unit="image",
+    ):
+
+        image_bgr = cv2.imread(
+            str(image_path),
+            cv2.IMREAD_COLOR,
+        )
+
         if image_bgr is None:
-            logging.warning("Skipping unreadable image: %s", image_path)
+            logging.warning(
+                "Skipping unreadable image: %s",
+                image_path,
+            )
             continue
-        image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+
+        image = cv2.cvtColor(
+            image_bgr,
+            cv2.COLOR_BGR2RGB,
+        )
+
         if inference_mode == "whole":
-            x, y, shape, _ = predict_whole_image(
+
+            x, y, shape, score = predict_whole_image(
                 model,
                 image,
                 int(merged["image_size"]),
                 device,
             )
+
         elif inference_mode == "tiles":
-            x, y, shape, _ = predict_tiled(
+
+            x, y, shape, score = predict_tiled(
                 model,
                 image,
                 int(merged["image_size"]),
@@ -160,20 +194,52 @@ def run_inference(
                 int(merged["tile_stride"]),
                 device,
             )
-        else:
-            raise ValueError("inference mode must be 'whole' or 'tiles'")
 
-        rel_path = image_path.relative_to(data_root).as_posix()
+        else:
+            raise ValueError(
+                "inference mode must be 'whole' or 'tiles'"
+            )
+
+        rel_path = image_path.relative_to(
+            data_root
+        ).as_posix()
+
         predictions[rel_path] = {
-            "mark": {"x": float(x), "y": float(y)},
+            "mark": {
+                "x": float(x),
+                "y": float(y),
+            },
             "verified_shape": shape,
+            "confidence": float(score),
         }
 
+    print(f"\nFinished processing {len(predictions)} images")
+
     output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(predictions, f, indent=2)
-    logging.info("Saved %d predictions to %s", len(predictions), output_path)
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    print(f"Saving predictions to: {output_path}")
+
+    with open(
+        output_path,
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(
+            predictions,
+            f,
+            indent=2,
+        )
+
+    logging.info(
+        "Saved %d predictions to %s",
+        len(predictions),
+        output_path,
+    )
 
 
 def main() -> None:

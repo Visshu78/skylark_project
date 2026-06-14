@@ -175,21 +175,6 @@ def run_training(config: dict) -> None:
             device,
             image_size=int(config["image_size"]),
         )
-        # DEBUG: inspect predictions
-        model.eval()
-        debug_batch = next(iter(valid_loader))
-        debug_images = debug_batch["image"].to(device)
-        debug_coords = debug_batch["coord"]
-        with torch.no_grad():
-            debug_outputs = model(debug_images)
-        debug_preds = debug_outputs["coords"].cpu()
-        print("\n===== DEBUG PREDICTIONS =====")
-        for i in range(min(10, len(debug_preds))):
-            print(
-                f"GT={debug_coords[i].tolist()} "
-                f"PR={debug_preds[i].tolist()}"
-            )
-        print("============================\n")
         scheduler.step()
 
         row = {

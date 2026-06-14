@@ -55,7 +55,7 @@ def main():
             pred_x,
             pred_y,
             c="red",
-            s=150,
+            s=15,
             label="Prediction",
         )
 
