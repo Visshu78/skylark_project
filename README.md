@@ -1,289 +1,543 @@
-# Skylar Drones Aerial GCP Pose Estimation
+# Skylar Drones – Aerial GCP Pose Estimation
 
-Production-quality pipeline for detecting Ground Control Point marker center coordinates and marker shape from aerial imagery.
+## Overview
 
-## Objective
+This repository contains a complete machine learning pipeline for automated **Ground Control Point (GCP) localization** and **marker shape classification** from aerial drone imagery.
 
-Given an aerial image containing a GCP marker, predict:
+The system performs two tasks simultaneously:
 
-- Marker center coordinates: `x`, `y`
-- Marker shape class:
-  - `Cross`
-  - `Square`
-  - `L-Shape`
+1. **Keypoint Localization** – Predict the center coordinates `(x, y)` of a GCP marker.
+2. **Shape Classification** – Predict the physical marker shape:
 
-This is implemented as a multitask learning problem with one shared visual backbone and two heads.
+   * Cross
+   * Square
+   * L-Shape
 
-## Verified Dataset Facts
+The project was developed as part of the **Computer Vision Engineering Assignment: Aerial GCP Pose Estimation**.
 
-Training labels are stored in `train_dataset/gcp_marks.json`.
+---
 
-| Item | Value |
-| --- | ---: |
-| Labelled training images | 1000 |
-| Test images | 300 |
-| Projects | 11 |
-| Surveys | 14 |
-| Physical GCP groups | 159 |
+# Problem Statement
 
-Class distribution:
+Given an aerial image containing a Ground Control Point (GCP) marker, the objective is to:
 
-| Shape | Count |
-| --- | ---: |
-| `L-Shape` | 491 |
-| `Square` | 328 |
-| `Cross` | 177 |
-| Missing shape labels | 4 |
+* Predict the exact center coordinates of the marker.
+* Classify the marker shape into one of three classes.
 
-Image resolutions:
+The challenge arises because the marker occupies only a tiny fraction of a high-resolution aerial image and appears under varying illumination, terrain, and viewing conditions.
 
-- `4096 x 3068`
-- `4096 x 2730`
+---
 
-The marker coordinate distribution spans the full image area, so the pipeline does not assume a center bias. Some label noise was observed in the `Cross` class during visual inspection.
+# Dataset Overview
 
-## Leakage-Safe Splitting
+The dataset contains aerial images collected from real-world drone surveying operations.
 
-Random image-level splitting is not valid for this dataset because multiple highly correlated images belong to the same physical GCP.
+Directory structure:
 
-The split key is:
+```text
+project_name/
+└── survey_name/
+    └── gcp_id/
+        └── image.JPG
+```
+
+Training labels are provided through:
+
+```text
+train_dataset/gcp_marks.json
+```
+
+Example annotation:
+
+```json
+{
+  "mark": {
+    "x": 1024.5,
+    "y": 850.2
+  },
+  "verified_shape": "L-Shape"
+}
+```
+
+The test dataset contains only images and no labels.
+
+---
+
+# Exploratory Data Analysis (EDA)
+
+Before designing the training pipeline, a detailed analysis of the dataset was performed to understand its structure, distribution, and potential challenges.
+
+## Dataset Statistics
+
+| Metric              | Value |
+| ------------------- | ----- |
+| Training Images     | 1000  |
+| Test Images         | 300   |
+| Projects            | 11    |
+| Surveys             | 14    |
+| Physical GCP Groups | 159   |
+
+The dataset follows a production-style hierarchical organization rather than a simplified academic structure.
+
+Multiple images often belong to the same physical GCP marker.
+
+---
+
+## Shape Distribution
+
+| Shape          | Count |
+| -------------- | ----- |
+| L-Shape        | 491   |
+| Square         | 328   |
+| Cross          | 177   |
+| Missing Labels | 4     |
+
+### Observations
+
+* Moderate class imbalance exists.
+* L-Shape markers account for nearly half of the dataset.
+* Cross markers are the least represented class.
+* Four images contain valid coordinate annotations but no shape labels.
+
+### Impact on Design
+
+* Macro F1 Score was selected for evaluation.
+* Missing labels are ignored during classification training using:
+
+```python
+ignore_index = -100
+```
+
+* Coordinate regression continues to learn from those samples.
+
+---
+
+## Resolution Analysis
+
+The dataset contains two image resolutions:
+
+| Resolution  |
+| ----------- |
+| 4096 × 3068 |
+| 4096 × 2730 |
+
+### Observations
+
+* Images are extremely high resolution.
+* The GCP marker occupies only a tiny region of the image.
+* Direct full-image coordinate regression is difficult.
+
+### Impact on Design
+
+A crop-based training strategy was adopted to convert the problem into a local localization task.
+
+---
+
+## Coordinate Distribution
+
+The marker center coordinates span nearly the entire image plane.
+
+### Observations
+
+* No strong center bias exists.
+* Markers appear close to borders as well as near image centers.
+
+### Impact on Design
+
+* No positional prior was introduced.
+* Marker placement inside crops is randomized.
+* The model cannot rely on the marker always appearing near the center.
+
+---
+
+## Dataset Correlation Analysis
+
+Images belonging to the same physical GCP share:
+
+* Similar viewpoints
+* Similar backgrounds
+* The same marker
+
+Example:
+
+```text
+project/
+└── survey/
+    └── GCP10/
+        ├── image_1.JPG
+        ├── image_2.JPG
+        └── image_3.JPG
+```
+
+A random image-level split would therefore introduce severe data leakage.
+
+### Impact on Design
+
+A leakage-safe split was implemented using:
+
+```text
+GroupKFold
+```
+
+Grouping key:
 
 ```text
 project/survey/gcp_id
 ```
 
-Folds are created using `GroupKFold`, ensuring images from the same physical GCP never appear in both training and validation.
+This guarantees that images from the same physical marker never appear in both training and validation sets.
 
-Generate metadata and folds:
+---
 
-```powershell
-.\.venv\Scripts\python.exe create_dataset_csv.py
-.\.venv\Scripts\python.exe create_folds.py
-```
+## Label Quality Analysis
 
-## Repository Layout
+Visual inspection revealed:
 
-```text
-project/
-  data/
-  notebooks/
-    eda.ipynb
-  src/
-    dataset.py
-    augmentations.py
-    model.py
-    losses.py
-    metrics.py
-    train.py
-    validate.py
-    inference.py
-  configs/
-    default.json
-  create_dataset_csv.py
-  create_folds.py
-  train.py
-  validate.py
-  inference.py
-  dataset.csv
-  dataset_folds.csv
-  outputs/
-    best_model.pth
-    last_model.pth
-    predictions.json
-    training_curves.png
-```
+* Minor annotation inconsistencies in some Cross markers.
+* Significant variation in:
 
-## Model Architecture
+  * Illumination
+  * Shadows
+  * Terrain
+  * Viewing angle
 
-```text
-EfficientNet-B3 backbone
-        |
-   shared features
-        |
-  -----------------
-  |               |
-Regression     Shape
-Head           Head
-```
+### Impact on Design
 
-Regression head:
+The following augmentations were used:
 
-```text
-Linear -> ReLU -> Dropout(0.2) -> Linear(2) -> Sigmoid
-```
+* Horizontal Flip
+* Vertical Flip
+* Random Rotate 90
+* ShiftScaleRotate
+* Random BrightnessContrast
 
-Shape head:
+---
 
-```text
-Linear -> ReLU -> Dropout(0.2) -> Linear(3)
-```
+# Assumptions
 
-The model is trained on marker-containing crops where the marker is deliberately
-not centered, so the regression head returns coordinates normalized inside the
-current crop/tile:
+The assignment intentionally contains ambiguities.
 
-```text
-x_crop_norm = x_crop / crop_width
-y_crop_norm = y_crop / crop_height
-```
+The following assumptions were made:
 
-`dataset.csv` also stores full-image normalized coordinates as metadata:
-`x_norm = x / width` and `y_norm = y / height`.
+1. Every image contains exactly one GCP marker.
+2. Marker center coordinates are accurate.
+3. Shape labels are correct whenever provided.
+4. Missing shape labels should not prevent coordinate learning.
+5. Test images follow a similar distribution to the training dataset.
+6. During inference, the tile with the highest classification confidence is assumed to contain the marker.
 
-No softmax is used inside the model. Classification uses `CrossEntropyLoss`.
+---
+# Design Rationale
 
-## Crop-Based Image Pipeline
+Several design decisions were made based on the findings from EDA.
 
-Full `4096 x ~3000` images are too large for efficient training on a 6GB GPU, so training uses marker-containing crops.
+### Why Crop-Based Training?
 
-Default behavior:
+The original images are approximately 4096×3000 pixels, while the GCP marker occupies only a tiny fraction of the image. Directly regressing coordinates from the full image would require the network to locate a very small object within millions of pixels.
 
-- Crop size: `512 x 512`
-- Final model input size: `512 x 512`
-- Training crop placement: random marker position inside the crop
-- Validation crop placement: deterministic pseudo-random marker position per image
-- Crop target margin: keeps the marker away from crop borders when possible
+To simplify the task, marker-containing crops are generated during training and coordinates are learned relative to the crop.
 
-Albumentations is used with keypoint-aware transforms so coordinate targets remain aligned after augmentation.
+### Why Multi-Task Learning?
 
-Required augmentations are included:
+Marker localization and shape classification are strongly related tasks. A shared backbone allows both tasks to learn from common visual features while keeping the model lightweight.
 
-- `HorizontalFlip`
-- `VerticalFlip`
-- `RandomRotate90`
-- `RandomBrightnessContrast`
-- `ShiftScaleRotate`
-- `Normalize`
+### Why EfficientNet-B3?
 
-## Missing Labels
+EfficientNet-B3 provides a strong balance between accuracy and computational efficiency, making it suitable for limited training data and mid-range GPU hardware.
 
-Four rows have valid coordinate annotations but no `verified_shape`.
+---
 
-For these samples:
+# Model Architecture
 
-- Coordinate regression loss is still used
-- Classification loss is ignored using `ignore_index=-100`
+## Backbone
 
-## Loss
+EfficientNet-B3
 
-Total loss:
+### Why EfficientNet-B3?
+
+* Excellent accuracy-to-parameter ratio.
+* Strong transfer learning performance.
+* Lower memory requirements than larger CNNs.
+* Suitable for training on a 6GB GPU.
+
+---
+
+## Multi-Task Architecture
 
 ```text
-loss = SmoothL1Loss(coords) + 0.5 * CrossEntropyLoss(shape)
+EfficientNet-B3 Backbone
+            |
+     Shared Features
+            |
+    -----------------
+    |               |
+Regression      Classification
+   Head             Head
 ```
 
-The classification weight is configurable in `configs/default.json`.
-
-## Training Strategy
-
-Training is split into two stages:
-
-1. Freeze EfficientNet-B3 backbone and train heads only
-2. Unfreeze the full model and fine-tune end-to-end
-
-Default config:
-
-- Optimizer: `AdamW`
-- Learning rate: `3e-4`
-- Scheduler: `CosineAnnealingLR`
-- Mixed precision: `torch.cuda.amp`
-- Best checkpoint metric: `PCK@10`
-- Early stopping: enabled
-
-CUDA is required for training. The code intentionally fails if no CUDA device is available.
-
-Start training:
-
-```powershell
-.\.venv\Scripts\python.exe train.py --config configs/default.json
-```
-
-Outputs:
+### Regression Head
 
 ```text
-outputs/best_model.pth
-outputs/last_model.pth
-outputs/training_curves.png
-outputs/train.log
+Linear
+→ ReLU
+→ Dropout(0.2)
+→ Linear
+→ Sigmoid
 ```
 
-## Validation Metrics
+Output:
 
-Localization:
-
-- Mean pixel error
-- `PCK@10`
-- `PCK@25`
-- `PCK@50`
-
-Classification:
-
-- Accuracy
-- Macro F1
-
-Run validation:
-
-```powershell
-.\.venv\Scripts\python.exe validate.py --model outputs/best_model.pth
+```text
+(x, y)
 ```
 
-## Inference
+### Classification Head
 
-Generate assignment-format predictions:
-
-```powershell
-.\.venv\Scripts\python.exe inference.py --model outputs/best_model.pth --data test_dataset --output outputs/predictions.json
+```text
+Linear
+→ ReLU
+→ Dropout(0.2)
+→ Linear
 ```
+
+Output:
+
+```text
+Cross / Square / L-Shape
+```
+
+---
+
+# Training Pipeline
+
+## Crop-Based Training
+
+Instead of training on entire 4096×3000 images:
+
+* Marker-containing crops are generated dynamically.
+* Crop size: 512×512
+* Marker position is randomized inside the crop.
+* Coordinates are converted into crop-relative normalized coordinates.
+
+This significantly simplifies the localization task.
+
+---
+
+## Data Augmentation
+
+Albumentations was used with keypoint-aware transformations.
+
+Applied augmentations:
+
+* Horizontal Flip
+* Vertical Flip
+* Random Rotate 90
+* ShiftScaleRotate
+* Random BrightnessContrast
+* Resize
+* Normalize
+
+---
+
+## Optimization
+
+| Parameter       | Value             |
+| --------------- | ----------------- |
+| Optimizer       | AdamW             |
+| Learning Rate   | 3e-4              |
+| Weight Decay    | 1e-4              |
+| Scheduler       | CosineAnnealingLR |
+| Mixed Precision | Enabled           |
+| Early Stopping  | Enabled           |
+
+---
+
+## Two-Stage Training
+
+### Stage 1
+
+Freeze EfficientNet backbone and train task-specific heads.
+
+### Stage 2
+
+Unfreeze the full network and fine-tune end-to-end.
+
+This stabilizes learning and improves transfer learning effectiveness.
+
+---
+
+# Validation Strategy
+
+A GroupKFold-based validation strategy was used.
+
+Current experiments were performed on:
+
+```text
+Fold 0
+```
+
+Approximate split:
+
+| Dataset    | Samples |
+| ---------- | ------- |
+| Training   | ~800    |
+| Validation | ~200    |
+
+No validation image appears in training.
+
+---
+
+# Results
+
+## Classification Performance
+
+| Metric   | Result |
+| -------- | ------ |
+| Accuracy | ≈ 100% |
+| Macro F1 | ≈ 1.0  |
+
+The model successfully distinguishes all marker shapes.
+
+---
+
+## Localization Performance
+
+| Metric        | Value     |
+| ------------- | --------- |
+| Mean Error    | 20.32 px  |
+| Median Error  | 17.20 px  |
+| Minimum Error | 2.21 px   |
+| Maximum Error | 144.00 px |
+
+The majority of predictions fall very close to the true marker center.
+
+---
+
+# Test Dataset Evaluation
+
+Ground-truth annotations are not available for the test dataset.
+
+Therefore:
+
+* Numerical evaluation is impossible.
+* Qualitative evaluation was performed.
+
+Random test images were manually inspected.
+
+The predicted marker locations consistently aligned with visible GCP markers, indicating successful generalization to unseen projects.
+
+---
+
+# Inference Pipeline
+
+Large aerial images are processed using overlapping tiles.
+
+Pipeline:
+
+1. Generate overlapping 512×512 tiles.
+2. Run the model on every tile.
+3. Compute classification confidence.
+4. Select the tile with highest confidence.
+5. Convert coordinates back to original image space.
+6. Save predictions.
 
 Output format:
 
 ```json
 {
-  "path/to/image.JPG": {
+  "image_path": {
     "mark": {
-      "x": 1234.56,
-      "y": 789.12
+      "x": 1234.5,
+      "y": 987.6
     },
     "verified_shape": "Cross"
   }
 }
 ```
 
-The default inference mode is tiled inference because test images do not provide annotations for crop centering. Since the requested architecture has no objectness head, tile selection uses the maximum shape-class probability as a practical confidence heuristic.
+---
 
-To run resized whole-image inference instead:
+# Model Weights
 
-```powershell
-.\.venv\Scripts\python.exe inference.py --mode whole
-```
-
-## Configuration
-
-Main settings live in:
+Best trained checkpoint:
 
 ```text
-configs/default.json
+[INSERT GOOGLE DRIVE LINK]
 ```
 
-Important fields:
+Download:
 
-- `fold`
-- `image_size`
-- `crop_size`
-- `crop_target_margin`
-- `batch_size`
-- `learning_rate`
-- `stage1_epochs`
-- `stage2_epochs`
-- `inference_mode`
-- `tile_stride`
-
-## Environment
-
-Install dependencies:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```text
+best_model.pth
 ```
 
-For PyTorch with CUDA, install the wheel that matches the local CUDA setup if the default PyPI package is not GPU-enabled.
+Place inside:
+
+```text
+outputs/
+```
+
+---
+
+# How to Train
+
+```bash
+python train.py --config configs/fold0_30epochs.json
+```
+
+---
+
+# How to Run Inference
+
+```bash
+python inference.py
+```
+
+Output:
+
+```text
+outputs/predictions.json
+```
+
+---
+
+# Repository Structure
+
+```text
+src/
+configs/
+
+train.py
+validate.py
+inference.py
+visualize_predictions.py
+
+create_dataset_csv.py
+create_folds.py
+
+README.md
+REPORT.md
+requirements.txt
+```
+
+---
+
+# Future Improvements
+
+Potential improvements include:
+
+* Heatmap-based localization
+* Hard negative mining
+* Confidence calibration
+* Higher-resolution crops
+* Cross-fold ensembling
+* Full 5-fold training
+
+---
+
+# Author
+
+**Vishal Dhawal**
+
+B.Tech Computer Science and Engineering
+IIIT Kottayam
