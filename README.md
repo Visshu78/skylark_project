@@ -13,7 +13,7 @@ The system performs two tasks simultaneously:
    * Square
    * L-Shape
 
-**Note-** Predection.json and best model checkpoint weight links are attached later in the document.
+**Note:** Links to the trained model checkpoint and final predictions.json are provided in the Resources section below.
 
 
 ---
@@ -226,6 +226,23 @@ The following assumptions were made:
 4. Missing shape labels should not prevent coordinate learning.
 5. Test images follow a similar distribution to the training dataset.
 6. During inference, the tile with the highest classification confidence is assumed to contain the marker.
+
+---
+
+## Executive Summary
+
+This project presents a multitask deep learning solution for automated Ground Control Point (GCP) localization and shape classification in aerial survey imagery.
+
+The final solution uses an EfficientNet-B3 backbone with separate regression and classification heads. A crop-based training strategy and tile-based inference pipeline were adopted to handle extremely high-resolution drone imagery efficiently.
+
+Final validation performance:
+
+| Metric | Result |
+|----------|----------|
+| Mean Localization Error | 20.32 px |
+| Median Localization Error | 17.20 px |
+| Shape Accuracy | ~100% |
+| Macro F1 Score | ~1.0 |
 
 ---
 # Design Rationale
