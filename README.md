@@ -551,6 +551,19 @@ REPORT.md
 requirements.txt
 ```
 
+# Deliverables Checklist
+
+| Requirement | Status |
+|-------------|---------|
+| EDA Analysis | ✅ |
+| Data Processing Pipeline | ✅ |
+| Training Pipeline | ✅ |
+| Validation Pipeline | ✅ |
+| Inference Pipeline | ✅ |
+| Trained Model Weights | ✅ |
+| predictions.json | ✅ |
+| Documentation | ✅ |
+
 ---
 
 # Future Improvements
