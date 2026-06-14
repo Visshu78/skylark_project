@@ -36,10 +36,18 @@ The dataset contains aerial images collected from real-world drone surveying ope
 Directory structure:
 
 ```text
-project_name/
-└── survey_name/
-    └── gcp_id/
-        └── image.JPG
+SkylarDrones/
+├── configs/
+├── src/
+├── train.py
+├── validate.py
+├── inference.py
+├── visualize_predictions.py
+├── create_dataset_csv.py
+├── create_folds.py
+├── README.md
+├── REPORT.md
+└── requirements.txt
 ```
 
 Training labels are provided through:
