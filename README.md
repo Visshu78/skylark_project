@@ -33,23 +33,6 @@ The challenge arises because the marker occupies only a tiny fraction of a high-
 
 The dataset contains aerial images collected from real-world drone surveying operations.
 
-Directory structure:
-
-```text
-SkylarDrones/
-├── configs/
-├── src/
-├── train.py
-├── validate.py
-├── inference.py
-├── visualize_predictions.py
-├── create_dataset_csv.py
-├── create_folds.py
-├── README.md
-├── REPORT.md
-└── requirements.txt
-```
-
 Training labels are provided through:
 
 ```text
@@ -167,17 +150,6 @@ Images belonging to the same physical GCP share:
 * Similar backgrounds
 * The same marker
 
-Example:
-
-```text
-project/
-└── survey/
-    └── GCP10/
-        ├── image_1.JPG
-        ├── image_2.JPG
-        └── image_3.JPG
-```
-
 A random image-level split would therefore introduce severe data leakage.
 
 ### Impact on Design
@@ -253,23 +225,6 @@ Final validation performance:
 | Macro F1 Score | ~1.0 |
 
 ---
-# Design Rationale
-
-Several design decisions were made based on the findings from EDA.
-
-### Why Crop-Based Training?
-
-The original images are approximately 4096×3000 pixels, while the GCP marker occupies only a tiny fraction of the image. Directly regressing coordinates from the full image would require the network to locate a very small object within millions of pixels.
-
-To simplify the task, marker-containing crops are generated during training and coordinates are learned relative to the crop.
-
-### Why Multi-Task Learning?
-
-Marker localization and shape classification are strongly related tasks. A shared backbone allows both tasks to learn from common visual features while keeping the model lightweight.
-
-### Why EfficientNet-B3?
-
-EfficientNet-B3 provides a strong balance between accuracy and computational efficiency, making it suitable for limited training data and mid-range GPU hardware.
 
 ---
 
@@ -439,7 +394,23 @@ The majority of predictions fall very close to the true marker center.
 
 ---
 
+### Final Training Configuration
+
+| Parameter | Value |
+|------------|------------|
+| Image Size | 512 |
+| Crop Size | 512 |
+| Batch Size | 8 |
+| Learning Rate | 3e-4 |
+| Weight Decay | 1e-4 |
+| Stage 1 Epochs | 3 |
+| Stage 2 Epochs | 27 |
+
+---
+
 # Test Dataset Evaluation
+
+Inference was successfully executed on all 300 test images, generating a submission-ready predictions.json file.
 
 Ground-truth annotations are not available for the test dataset.
 
@@ -480,6 +451,9 @@ Output format:
   }
 }
 ```
+
+---
+
 # Resources
 
 ## Dataset
@@ -537,6 +511,7 @@ Output:
 
 ```text
 outputs/predictions.json
+---
 
 ---
 
